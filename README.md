@@ -184,6 +184,29 @@ Once authenticated, use these tools directly in Claude Desktop or Claude Code:
 - **Session Persistence**: No need to re-authenticate frequently
 - **Secure**: Credentials never pass through Claude
 
+## 🔒 Read-Only Mode
+
+For agent integrations where Monarch should be available for analysis but not mutation, set:
+
+```bash
+MONARCH_MCP_READ_ONLY=true
+```
+
+When enabled, the MCP server removes mutating tools from tool discovery. Read-only mode still exposes account, transaction, budget, cashflow, holdings, category, tag, and authentication-status tools.
+
+Tools hidden in read-only mode:
+
+- `create_transaction`
+- `update_transaction`
+- `create_transaction_category`
+- `create_transaction_tag`
+- `set_transaction_tags`
+- `add_transaction_tag`
+- `categorize_transaction`
+- `refresh_accounts`
+
+This is the recommended default for autonomous agents. Run a separate non-read-only server only when you explicitly want write/admin capabilities.
+
 ## 🛠️ Available Tools
 
 | Tool | Description | Parameters |

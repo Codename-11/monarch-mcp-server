@@ -24,6 +24,42 @@ load_dotenv()
 # Initialize FastMCP server
 mcp = FastMCP("Monarch Money MCP Server")
 
+READ_ONLY_ENV_VAR = "MONARCH_MCP_READ_ONLY"
+READ_ONLY_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+MUTATING_TOOL_NAMES: tuple[str, ...] = (
+    "create_transaction",
+    "update_transaction",
+    "create_transaction_category",
+    "create_transaction_tag",
+    "set_transaction_tags",
+    "add_transaction_tag",
+    "categorize_transaction",
+    "refresh_accounts",
+)
+
+
+def is_read_only_mode() -> bool:
+    """Return whether mutating MCP tools should be disabled."""
+    return os.getenv(READ_ONLY_ENV_VAR, "").strip().lower() in READ_ONLY_TRUE_VALUES
+
+
+def apply_read_only_mode() -> None:
+    """Remove mutating tools from the MCP server when read-only mode is enabled."""
+    if not is_read_only_mode():
+        return
+
+    removed_tools: list[str] = []
+    for tool_name in MUTATING_TOOL_NAMES:
+        if mcp._tool_manager.get_tool(tool_name) is not None:
+            mcp.remove_tool(tool_name)
+            removed_tools.append(tool_name)
+
+    logger.info(
+        "Read-only mode enabled; removed mutating tools: %s",
+        ", ".join(removed_tools),
+    )
+
 
 def run_async(coro: Any) -> Any:
     """Run async function in a new thread with its own event loop."""
@@ -714,6 +750,9 @@ def refresh_accounts() -> str:
     except Exception as e:
         logger.error(f"Failed to refresh accounts: {e}")
         return f"Error refreshing accounts: {str(e)}"
+
+
+apply_read_only_mode()
 
 
 def main() -> None:
