@@ -135,6 +135,8 @@ My MonarchMoney referral: https://www.monarchmoney.com/referral/ufmn0r83yf?r_sou
 
 **Important**: For security and MFA support, authentication is done outside of Claude.
 
+#### Option A: Email/Password Login
+
 Open Terminal and run:
 
 **Using `python`**:
@@ -174,38 +176,88 @@ Once authenticated, use these tools directly in Claude Desktop or Claude Code:
 - **Create Transaction**: Add new transactions to accounts
 - **Update Transaction**: Modify existing transactions (amount, description, category, date)
 
-### 📈 Financial Analysis
-- **Get Budgets**: Access budget information including spent amounts and remaining balances
+### 🏷️ Category Management
+- **Get Categories**: List all transaction categories with groups, icons, and metadata
+- **Get Category Groups**: View category groups with their associated categories
+
+### 📋 Transaction Review
+- **Get Transactions Needing Review**: Find transactions that need attention (uncategorized, no notes, flagged)
+- **Set Transaction Category**: Assign a category to a transaction
+- **Update Transaction Notes**: Add or update notes on transactions (great for receipt links)
+- **Mark Transaction Reviewed**: Clear the needs_review flag on transactions
+
+### 📦 Bulk Operations
+- **Bulk Categorize Transactions**: Apply a category to multiple transactions at once
+
+### 🔖 Tag Management
+- **Get Tags**: List all available tags with colors and usage counts
+- **Set Transaction Tags**: Apply tags to a transaction
+- **Create Tag**: Create a new tag with custom name and color
+
+### 🔍 Advanced Search
+- **Search Transactions**: Comprehensive search with filters for merchant, category, account, tags, date ranges, and amounts
+- **Get Transaction Details**: Retrieve complete details for a single transaction
+- **Delete Transaction**: Remove a transaction
+- **Get Recurring Transactions**: View upcoming recurring transactions
+
+### 🤖 Transaction Rules (Auto-Categorization)
+- **Get Transaction Rules**: List all auto-categorization rules
+- **Create Transaction Rule**: Create rules with merchant/amount conditions to auto-categorize
+- **Update Transaction Rule**: Modify existing rules
+- **Delete Transaction Rule**: Remove a rule
+
+### 🔄 Merchant & Recurring Stream Management
+- **Get Merchant**: View a merchant's details including recurring transaction stream configuration
+- **Update Merchant**: Modify a merchant's name and/or recurring stream settings (frequency, amount, base date)
+- **Review Recurring Stream**: Accept, ignore, or reset recurring transaction streams detected by Monarch
+
+### ✂️ Transaction Splits
+- **Get Transaction Splits**: View how a transaction has been split into parts
+- **Split Transaction**: Divide a single transaction into multiple parts with different categories or merchants
+
+### 💵 Budget Management
+- **Get Budgets**: Access budget information including spent amounts and remaining balances by category
+- **Set Budget Amount**: Create or modify budget amounts for any category or category group
+
+### 📈 Net Worth Tracking
+- **Get Net Worth**: Track total net worth over time with daily snapshots and trend analysis
+- **Get Account Balance History**: View historical balance data for any account
+- **Get Net Worth by Account Type**: See net worth breakdown across account types (checking, savings, investments, etc.)
+
+### 📊 Financial Analysis
 - **Get Cashflow**: Analyze financial cashflow over specified date ranges with income/expense breakdowns
+- **Get Transactions Summary**: Quick high-level statistics about your transactions
+- **Get Spending Summary**: Spending breakdown by category with totals
 
 ### 🔐 Secure Authentication
 - **One-Time Setup**: Authenticate once, use for weeks/months
 - **MFA Support**: Full support for two-factor authentication
+- **SSO/Google sign-in**: Use `monarch_login_with_token` to paste a session token from your browser
 - **Session Persistence**: No need to re-authenticate frequently
 - **Secure**: Credentials never pass through Claude
 
-## 🔒 Read-Only Mode
+## 🔒 Write Scope / Read-Only Mode
 
-For agent integrations where Monarch should be available for analysis but not mutation, set:
+For agent integrations, the server defaults to safe read-only behavior unless writes are explicitly enabled:
 
 ```bash
-MONARCH_MCP_READ_ONLY=true
+MONARCH_MCP_WRITE_SCOPE=none      # default: hide all mutating tools
+MONARCH_MCP_WRITE_SCOPE=budgets   # expose only budget mutation tools
+MONARCH_MCP_WRITE_SCOPE=all       # expose all mutating tools
 ```
 
-When enabled, the MCP server removes mutating tools from tool discovery. Read-only mode still exposes account, transaction, budget, cashflow, holdings, category, tag, and authentication-status tools.
+The legacy flag is still supported:
 
-Tools hidden in read-only mode:
+```bash
+MONARCH_MCP_READ_ONLY=true   # equivalent to MONARCH_MCP_WRITE_SCOPE=none
+MONARCH_MCP_READ_ONLY=false  # equivalent to MONARCH_MCP_WRITE_SCOPE=all when WRITE_SCOPE is unset
+```
 
-- `create_transaction`
-- `update_transaction`
-- `create_transaction_category`
-- `create_transaction_tag`
-- `set_transaction_tags`
-- `add_transaction_tag`
-- `categorize_transaction`
-- `refresh_accounts`
+Read-only mode still exposes account, transaction, budget, cashflow, holdings, category, tag, and authentication-status tools. `budgets` mode exposes `set_budget_amount` and `update_flexible_budget` while keeping transaction/category/account/rule/merchant mutators hidden.
 
-This is the recommended default for autonomous agents. Run a separate non-read-only server only when you explicitly want write/admin capabilities.
+Budget write tools default to `dry_run=true`, returning the current amount, proposed amount, and delta without mutating Monarch. Call again with `dry_run=false` to apply.
+
+This is the recommended default for autonomous agents: use `none` for analysis, `budgets` for approved budget edits, and `all` only for explicit admin sessions.
 
 ## 🛠️ Available Tools
 
@@ -214,13 +266,43 @@ This is the recommended default for autonomous agents. Run a separate non-read-o
 | `setup_authentication` | Get setup instructions | None |
 | `check_auth_status` | Check authentication status | None |
 | `get_accounts` | Get all financial accounts | None |
-| `get_transactions` | Get transactions with filtering | `limit`, `offset`, `start_date`, `end_date`, `account_id` |
-| `get_budgets` | Get budget information | None |
+| `get_transactions` | Get transactions with filtering and reconciliation fields | `limit`, `offset`, `start_date`, `end_date`, `account_id`, `account_ids`, `category_ids`, `category_group_ids`, `tag_ids`, `search`, `wide_search`, `search_scan_limit`, `has_notes`, `is_split`, `is_recurring` |
+| `get_budgets` | Get budget information | `start_date`, `end_date` |
+| `set_budget_amount` | Dry-run or set budget for a category/group | `amount`, `category_id`, `category_group_id`, `start_date`, `apply_to_future`, `dry_run` |
+| `update_flexible_budget` | Dry-run or set the flexible expense bucket | `amount`, `start_date`, `apply_to_future`, `dry_run` |
 | `get_cashflow` | Get cashflow analysis | `start_date`, `end_date` |
+| `get_net_worth` | Get net worth history | `start_date`, `end_date`, `account_type` |
+| `get_account_balance_history` | Get account balance history | `account_id` |
+| `get_net_worth_by_account_type` | Get net worth by account type | `start_date`, `timeframe` |
 | `get_account_holdings` | Get investment holdings | `account_id` |
 | `create_transaction` | Create new transaction | `account_id`, `amount`, `description`, `date`, `category_id`, `merchant_name` |
 | `update_transaction` | Update existing transaction | `transaction_id`, `amount`, `description`, `category_id`, `date` |
-| `refresh_accounts` | Request account data refresh | None |
+| `refresh_accounts` | Request account data refresh | `account_ids` (optional — defaults to all active, visible accounts) |
+| `get_categories` | List all transaction categories | None |
+| `get_category_groups` | List category groups with categories | None |
+| `get_transactions_needing_review` | Get transactions needing review | `needs_review`, `days`, `uncategorized`, `no_notes` |
+| `set_transaction_category` | Set category on a transaction | `transaction_id`, `category_id`, `mark_reviewed` |
+| `update_transaction_notes` | Update notes on a transaction | `transaction_id`, `notes` |
+| `mark_transaction_reviewed` | Mark transaction as reviewed | `transaction_id` |
+| `bulk_categorize_transactions` | Categorize multiple transactions | `transaction_ids`, `category_id` |
+| `get_tags` | List all tags | None |
+| `set_transaction_tags` | Set tags on a transaction | `transaction_id`, `tag_ids` |
+| `create_tag` | Create a new tag | `name`, `color` |
+| `search_transactions` | Search transactions with filters | `search`, `category_ids`, `account_ids`, `tag_ids`, `start_date`, `end_date`, `min_amount`, `max_amount` |
+| `get_transaction_details` | Get details of a transaction | `transaction_id` |
+| `delete_transaction` | Delete a transaction | `transaction_id` |
+| `get_recurring_transactions` | Get recurring transactions | None |
+| `get_transaction_rules` | List auto-categorization rules | None |
+| `create_transaction_rule` | Create an auto-categorization rule | `merchant_criteria_operator`, `merchant_criteria_value`, `set_category_id`, `add_tag_ids`, `amount_operator`, `amount_value` |
+| `update_transaction_rule` | Update an existing rule | `rule_id`, `merchant_criteria_operator`, `merchant_criteria_value`, `set_category_id` |
+| `delete_transaction_rule` | Delete a rule | `rule_id` |
+| `get_merchant` | Get merchant details with recurring stream | `merchant_id` |
+| `update_merchant` | Update merchant name/recurring stream | `merchant_id`, `name`, `is_recurring`, `frequency`, `base_date`, `amount`, `is_active` |
+| `review_recurring_stream` | Set recurring stream review status | `stream_id`, `review_status` |
+| `get_transaction_splits` | Get splits for a transaction | `transaction_id` |
+| `split_transaction` | Split a transaction into parts | `transaction_id`, `splits` (JSON array) |
+| `get_transactions_summary` | Get high-level transaction statistics | None |
+| `get_spending_summary` | Get spending breakdown by category | `start_date`, `end_date`, `limit` |
 
 ## 📝 Usage Examples
 
@@ -234,14 +316,101 @@ Use get_accounts to show me all my financial accounts
 Show me my last 50 transactions using get_transactions with limit 50
 ```
 
+`get_transactions` returns a JSON object with `tool`, `args`, `count`, `total_count`, `truncated`, `search`, and `data` so large `agent-tools/<uuid>.txt` responses are self-describing. Transaction rows live in `data` and include `original_statement` / `plaid_description` when Monarch provides the underlying Plaid statement text, plus `currency`, `direction`, `direction_source`, `transaction_type`, `category_group`, and `category_group_id` when those values can be derived from Monarch response data. When Monarch's server-side `search` errors or returns no rows, `wide_search` scans recent transactions locally across merchant, original statement, description, notes, category, account, and tags.
+
 ### Check Spending vs Budget
 ```
 Use get_budgets to show my current budget status
 ```
 
+### Set a Budget Amount
+```
+Set my grocery budget to $600 for this month using set_budget_amount
+```
+
+### Apply Budget to All Future Months
+```
+Set my entertainment budget to $150 and apply it to all future months using set_budget_amount with apply_to_future=true
+```
+
+### Track Net Worth Over Time
+```
+Show my net worth trend for the past year using get_net_worth
+```
+
+### View Account Balance History
+```
+Show me how my savings account balance has changed over time using get_account_balance_history
+```
+
+### Net Worth Breakdown by Account Type
+```
+Show my net worth breakdown by account type using get_net_worth_by_account_type
+```
+
 ### Analyze Cash Flow
 ```
 Get my cashflow for the last 3 months using get_cashflow
+```
+
+### List Available Categories
+```
+Show me all available categories using get_categories
+```
+
+### Review Uncategorized Transactions
+```
+Show me transactions from the last 7 days that need review using get_transactions_needing_review
+```
+
+### Bulk Categorize Transactions
+```
+Categorize these three transactions as "Groceries" using bulk_categorize_transactions
+```
+
+### Tag a Transaction
+```
+Add the "Tax Deductible" tag to this transaction using set_transaction_tags
+```
+
+### Search for Transactions
+```
+Find all Amazon transactions over $50 from the last month using search_transactions
+```
+
+### View Recurring Bills
+```
+Show me my upcoming recurring transactions using get_recurring_transactions
+```
+
+### Create Auto-Categorization Rule
+```
+Create a rule to automatically categorize Amazon transactions as "Shopping" using create_transaction_rule
+```
+
+### Split a Transaction
+```
+Split this $100 Costco transaction into $60 for Groceries and $40 for Household using split_transaction
+```
+
+### Get Transaction Statistics
+```
+Give me a quick summary of my transactions using get_transactions_summary
+```
+
+### View Spending by Category
+```
+Show my spending breakdown by category for last month using get_spending_summary
+```
+
+### Update a Recurring Bill Amount
+```
+Update PennyMac's recurring stream to $1,460.93 monthly using update_merchant
+```
+
+### Review Recurring Streams
+```
+Approve the Netflix recurring stream using review_recurring_stream
 ```
 
 ## 📅 Date Formats
@@ -263,6 +432,15 @@ Sessions last for weeks, but if expired:
 2. Enter your credentials and 2FA code
 3. Session will be refreshed automatically
 
+### `'Context' object has no attribute 'elicit'`
+The `monarch_login` and `monarch_login_with_token` tools require the MCP Python SDK 1.10.0 or newer (released June 2025). If your environment cached an older `mcp` install, refresh it:
+
+```bash
+uv cache clean mcp
+```
+
+Then fully quit and reopen Claude Desktop or Claude Code so it relaunches the server with a fresh resolution. As a fallback while you upgrade, run `python login_setup.py` from the repo to authenticate via the terminal.
+
 ### Common Error Messages
 - **"No valid session found"**: Run `python login_setup.py` (or `uv run python login_setup.py`) 
 - **"Invalid account ID"**: Use `get_accounts` to see valid account IDs
@@ -276,7 +454,7 @@ monarch-mcp-server/
 ├── src/monarch_mcp_server/
 │   ├── __init__.py
 │   └── server.py          # Main server implementation
-├── login_setup.py         # Authentication setup script
+├── login_setup.py         # Email/password authentication script
 ├── pyproject.toml         # Project configuration
 ├── requirements.txt       # Dependencies
 └── README.md             # This documentation
@@ -293,6 +471,14 @@ monarch-mcp-server/
 - MFA/2FA fully supported
 - Session files are encrypted
 - Authentication handled in secure terminal environment
+
+### Recommended: require approval for mutating tools
+
+Several tools mutate your Monarch ledger (`create_transaction`, `update_transaction`, `delete_transaction`, `bulk_categorize_transactions`, `upload_account_balance_history`, `set_transaction_tags`, `create_transaction_rule`, `update_transaction_rule`, `delete_transaction_rule`, `split_transaction`, `set_budget_amount`, `update_merchant`, `review_recurring_stream`).
+
+Because the LLM can be influenced by data it reads back (a malicious-looking memo or merchant name in a transaction), the safest setup is to configure your MCP client to require manual approval before any mutating tool runs. In Claude Desktop and Claude Code this is the default behavior for unknown tools; keep it that way for the tools listed above rather than allow-listing them.
+
+`bulk_categorize_transactions` and `upload_account_balance_history` also accept a `dry_run=True` argument that returns the planned changes without executing them, useful for previewing a bulk action before approving it.
 
 ## 🙏 Acknowledgments
 
