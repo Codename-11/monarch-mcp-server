@@ -30,6 +30,7 @@ from monarch_mcp_server.tools.transactions import (  # noqa: F401
     get_transactions,
     search_transactions,
     get_transaction_details,
+    update_transaction_review,
     create_transaction,
     update_transaction,
     categorize_transaction,
@@ -50,6 +51,7 @@ from monarch_mcp_server.tools.splits import (  # noqa: F401
 )
 from monarch_mcp_server.tools.tags import (  # noqa: F401
     get_transaction_tags,
+    create_transaction_tag_safe,
     set_transaction_tags,
     add_transaction_tag,
     create_transaction_tag,

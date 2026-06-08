@@ -1,13 +1,86 @@
 """Tag management tools."""
 
 import logging
-from typing import List
+from typing import Any, List, Optional
 
 from monarch_mcp_server.app import mcp
 from monarch_mcp_server.client import get_monarch_client
 from monarch_mcp_server.helpers import json_success, json_error
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_transaction_tags(data: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_tags = data.get("householdTransactionTags") or data.get("tags") or []
+    return [
+        {"id": tag.get("id"), "name": tag.get("name"), "color": tag.get("color")}
+        for tag in raw_tags
+        if isinstance(tag, dict)
+    ]
+
+
+def _find_tag_by_name(tags: list[dict[str, Any]], name: str) -> Optional[dict[str, Any]]:
+    normalized = name.strip().casefold()
+    for tag in tags:
+        if str(tag.get("name") or "").strip().casefold() == normalized:
+            return tag
+    return None
+
+
+@mcp.tool()
+async def create_transaction_tag_safe(
+    name: str,
+    color: str = "#26B3FC",
+    dry_run: bool = True,
+) -> str:
+    """
+    Safely create a transaction tag, defaulting to dry-run.
+
+    If a tag with the same case-insensitive name already exists, returns it
+    without creating a duplicate. Use dry_run=false to actually create a missing
+    tag.
+    """
+    try:
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValueError("Tag name is required")
+
+        client = await get_monarch_client()
+        tags = _extract_transaction_tags(await client.get_transaction_tags())
+        existing = _find_tag_by_name(tags, clean_name)
+        if existing is not None:
+            return json_success(
+                {
+                    "dry_run": dry_run,
+                    "created": False,
+                    "tag": existing,
+                    "message": "Tag already exists; no mutation needed.",
+                }
+            )
+
+        if dry_run:
+            return json_success(
+                {
+                    "dry_run": True,
+                    "created": False,
+                    "name": clean_name,
+                    "color": color,
+                    "message": "Dry run only; call again with dry_run=false to create tag.",
+                }
+            )
+
+        result = await client.create_transaction_tag(name=clean_name, color=color)
+        return json_success(
+            {
+                "dry_run": False,
+                "created": True,
+                "name": clean_name,
+                "color": color,
+                "result": result,
+            }
+        )
+    except Exception as e:
+        return json_error("create_transaction_tag_safe", e)
 
 
 @mcp.tool()

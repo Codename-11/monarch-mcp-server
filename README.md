@@ -241,9 +241,11 @@ Once authenticated, use these tools directly in Claude Desktop or Claude Code:
 For agent integrations, the server defaults to safe read-only behavior unless writes are explicitly enabled:
 
 ```bash
-MONARCH_MCP_WRITE_SCOPE=none      # default: hide all mutating tools
-MONARCH_MCP_WRITE_SCOPE=budgets   # expose only budget mutation tools
-MONARCH_MCP_WRITE_SCOPE=all       # expose all mutating tools
+MONARCH_MCP_WRITE_SCOPE=none                  # default: hide all mutating tools
+MONARCH_MCP_WRITE_SCOPE=budgets               # expose only budget mutation tools
+MONARCH_MCP_WRITE_SCOPE=transactions_review   # expose only dry-run-first review tools
+MONARCH_MCP_WRITE_SCOPE=budgets,transactions_review  # combine budget + safe review writes
+MONARCH_MCP_WRITE_SCOPE=all                   # expose all mutating tools
 ```
 
 The legacy flag is still supported:
@@ -253,11 +255,11 @@ MONARCH_MCP_READ_ONLY=true   # equivalent to MONARCH_MCP_WRITE_SCOPE=none
 MONARCH_MCP_READ_ONLY=false  # equivalent to MONARCH_MCP_WRITE_SCOPE=all when WRITE_SCOPE is unset
 ```
 
-Read-only mode still exposes account, transaction, budget, cashflow, holdings, category, tag, and authentication-status tools. `budgets` mode exposes `set_budget_amount` and `update_flexible_budget` while keeping transaction/category/account/rule/merchant mutators hidden.
+Read-only mode still exposes account, transaction, budget, cashflow, holdings, category, tag, and authentication-status tools. `budgets` mode exposes `set_budget_amount` and `update_flexible_budget` while keeping transaction/category/account/rule/merchant mutators hidden. `transactions_review` mode exposes only dry-run-first review tools: `create_transaction_tag_safe` and `update_transaction_review`. These can create tags and add tags/categories/mark-reviewed on existing transactions, but they cannot edit amount, date, merchant, account, notes, hide-from-reports, rules, categories, or delete/create transactions.
 
-Budget write tools default to `dry_run=true`, returning the current amount, proposed amount, and delta without mutating Monarch. Call again with `dry_run=false` to apply.
+Budget and review write tools default to `dry_run=true`, returning planned changes without mutating Monarch. Call again with `dry_run=false` to apply.
 
-This is the recommended default for autonomous agents: use `none` for analysis, `budgets` for approved budget edits, and `all` only for explicit admin sessions.
+This is the recommended default for autonomous agents: use `none` for analysis, `budgets` for approved budget edits, `transactions_review` for approved transaction review cleanup, and `all` only for explicit admin sessions.
 
 ## 🛠️ Available Tools
 
@@ -291,8 +293,11 @@ This is the recommended default for autonomous agents: use `none` for analysis, 
 | `search_transactions` | Search transactions with filters | `search`, `category_ids`, `account_ids`, `tag_ids`, `start_date`, `end_date`, `min_amount`, `max_amount` |
 | `get_transaction_details` | Get details of a transaction | `transaction_id` |
 | `delete_transaction` | Delete a transaction | `transaction_id` |
-| `get_recurring_transactions` | Get recurring transactions | None |
-| `get_transaction_rules` | List auto-categorization rules | None |
+| `get_recurring_transactions` | Get recurring transactions | `start_date`, `end_date` |
+| `get_transaction_tags` | Get all available transaction tags | None |
+| `create_transaction_tag_safe` | Dry-run or create a tag if missing | `name`, `color`, `dry_run` |
+| `update_transaction_review` | Dry-run or safely add tags/category/mark-reviewed on an existing transaction | `transaction_id`, `category_id`, `add_tag_ids`, `add_tag_names`, `mark_reviewed`, `dry_run` |
+| `get_transaction_rules` | Get transaction rules | None |
 | `create_transaction_rule` | Create an auto-categorization rule | `merchant_criteria_operator`, `merchant_criteria_value`, `set_category_id`, `add_tag_ids`, `amount_operator`, `amount_value` |
 | `update_transaction_rule` | Update an existing rule | `rule_id`, `merchant_criteria_operator`, `merchant_criteria_value`, `set_category_id` |
 | `delete_transaction_rule` | Delete a rule | `rule_id` |

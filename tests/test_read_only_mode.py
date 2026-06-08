@@ -14,6 +14,11 @@ BUDGET_MUTATING_TOOL_NAMES = {
     "update_flexible_budget",
 }
 
+REVIEW_MUTATING_TOOL_NAMES = {
+    "create_transaction_tag_safe",
+    "update_transaction_review",
+}
+
 NON_BUDGET_MUTATING_TOOL_NAMES = {
     "refresh_accounts",
     "upload_account_balance_history",
@@ -100,7 +105,7 @@ asyncio.run(main())
 def test_default_scope_excludes_all_mutating_tools():
     tool_names = _list_tools()
 
-    assert (BUDGET_MUTATING_TOOL_NAMES | NON_BUDGET_MUTATING_TOOL_NAMES).isdisjoint(tool_names)
+    assert (BUDGET_MUTATING_TOOL_NAMES | REVIEW_MUTATING_TOOL_NAMES | NON_BUDGET_MUTATING_TOOL_NAMES).isdisjoint(tool_names)
     assert READ_TOOL_NAMES <= tool_names
 
 
@@ -108,6 +113,7 @@ def test_legacy_read_only_false_allows_all_mutating_tools():
     tool_names = _list_tools(legacy_read_only=False)
 
     assert BUDGET_MUTATING_TOOL_NAMES <= tool_names
+    assert REVIEW_MUTATING_TOOL_NAMES <= tool_names
     assert NON_BUDGET_MUTATING_TOOL_NAMES <= tool_names
     assert READ_TOOL_NAMES <= tool_names
 
@@ -116,6 +122,25 @@ def test_write_scope_budgets_exposes_only_budget_mutators():
     tool_names = _list_tools(write_scope="budgets")
 
     assert BUDGET_MUTATING_TOOL_NAMES <= tool_names
+    assert REVIEW_MUTATING_TOOL_NAMES.isdisjoint(tool_names)
+    assert NON_BUDGET_MUTATING_TOOL_NAMES.isdisjoint(tool_names)
+    assert READ_TOOL_NAMES <= tool_names
+
+
+def test_write_scope_transactions_review_exposes_only_safe_review_mutators():
+    tool_names = _list_tools(write_scope="transactions_review")
+
+    assert REVIEW_MUTATING_TOOL_NAMES <= tool_names
+    assert BUDGET_MUTATING_TOOL_NAMES.isdisjoint(tool_names)
+    assert NON_BUDGET_MUTATING_TOOL_NAMES.isdisjoint(tool_names)
+    assert READ_TOOL_NAMES <= tool_names
+
+
+def test_write_scope_can_combine_budgets_and_transactions_review():
+    tool_names = _list_tools(write_scope="budgets,transactions_review")
+
+    assert BUDGET_MUTATING_TOOL_NAMES <= tool_names
+    assert REVIEW_MUTATING_TOOL_NAMES <= tool_names
     assert NON_BUDGET_MUTATING_TOOL_NAMES.isdisjoint(tool_names)
     assert READ_TOOL_NAMES <= tool_names
 
@@ -124,6 +149,7 @@ def test_write_scope_all_exposes_all_mutating_tools():
     tool_names = _list_tools(write_scope="all")
 
     assert BUDGET_MUTATING_TOOL_NAMES <= tool_names
+    assert REVIEW_MUTATING_TOOL_NAMES <= tool_names
     assert NON_BUDGET_MUTATING_TOOL_NAMES <= tool_names
     assert READ_TOOL_NAMES <= tool_names
 

@@ -623,6 +623,106 @@ async def get_transaction_details(transaction_id: str) -> str:
 
 
 @mcp.tool()
+async def update_transaction_review(
+    transaction_id: str,
+    category_id: Optional[str] = None,
+    add_tag_ids: Optional[List[str]] = None,
+    add_tag_names: Optional[List[str]] = None,
+    mark_reviewed: bool = False,
+    dry_run: bool = True,
+) -> str:
+    """
+    Safely update review metadata for a transaction, defaulting to dry-run.
+
+    This intentionally exposes only review-safe fields: category, additive tags,
+    and clearing needs_review. It cannot change amount, date, merchant, notes,
+    account, hide-from-reports, or replace existing tags.
+
+    Args:
+        transaction_id: The transaction ID to update
+        category_id: Optional category ID to assign
+        add_tag_ids: Optional tag IDs to add while preserving existing tags
+        add_tag_names: Optional tag names to resolve and add while preserving existing tags
+        mark_reviewed: Whether to clear the needs_review flag
+        dry_run: If True, return planned changes without mutating
+    """
+    try:
+        if not category_id and not add_tag_ids and not add_tag_names and not mark_reviewed:
+            raise ValueError("No review update requested")
+
+        client = await get_monarch_client()
+        details = await client.get_transaction_details(transaction_id)
+        txn = details.get("getTransaction") or details.get("transaction") or {}
+        existing_tag_ids = [
+            tag.get("id")
+            for tag in (txn.get("tags") or [])
+            if isinstance(tag, dict) and tag.get("id")
+        ]
+
+        requested_tag_ids: List[str] = [tag_id for tag_id in (add_tag_ids or []) if tag_id]
+        if add_tag_names:
+            tag_data = await client.get_transaction_tags()
+            available_tags = tag_data.get("householdTransactionTags") or tag_data.get("tags") or []
+            tag_ids_by_name = {
+                str(tag.get("name") or "").strip().casefold(): tag.get("id")
+                for tag in available_tags
+                if isinstance(tag, dict) and tag.get("name") and tag.get("id")
+            }
+            for tag_name in add_tag_names:
+                tag_id = tag_ids_by_name.get(tag_name.strip().casefold())
+                if not isinstance(tag_id, str) or not tag_id:
+                    raise ValueError(f"Unknown tag name: {tag_name}")
+                requested_tag_ids.append(tag_id)
+
+        merged_tag_ids = list(existing_tag_ids)
+        for tag_id in requested_tag_ids:
+            if tag_id not in merged_tag_ids:
+                merged_tag_ids.append(tag_id)
+
+        transaction_update: Dict[str, Any] = {"transaction_id": transaction_id}
+        if category_id is not None:
+            transaction_update["category_id"] = category_id
+        if mark_reviewed:
+            transaction_update["needs_review"] = False
+
+        planned_update: Dict[str, Any] = {"transaction_id": transaction_id}
+        if category_id is not None:
+            planned_update["category_id"] = category_id
+        if requested_tag_ids:
+            planned_update["tag_ids"] = merged_tag_ids
+        if mark_reviewed:
+            planned_update["needs_review"] = False
+
+        if dry_run:
+            return json_success(
+                {
+                    "dry_run": True,
+                    "planned_update": planned_update,
+                    "existing_tag_ids": existing_tag_ids,
+                }
+            )
+
+        results: Dict[str, Any] = {}
+        if len(transaction_update) > 1:
+            results["transaction"] = await client.update_transaction(**transaction_update)
+        if requested_tag_ids:
+            results["tags"] = await client.set_transaction_tags(
+                transaction_id=transaction_id,
+                tag_ids=merged_tag_ids,
+            )
+
+        return json_success(
+            {
+                "dry_run": False,
+                "applied_update": planned_update,
+                "result": results,
+            }
+        )
+    except Exception as e:
+        return json_error("update_transaction_review", e)
+
+
+@mcp.tool()
 async def create_transaction(
     date: str,
     account_id: str,
